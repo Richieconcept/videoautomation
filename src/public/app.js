@@ -28,6 +28,7 @@ const autoFields = {
 
 let currentJobId = null;
 let automationEnabled = false;
+let manualPipelinePoller = null;
 
 const fields = {
   platform: document.querySelector('#platform'),
@@ -202,8 +203,12 @@ function displayResult(data) {
   fields.duration.textContent = formatDuration(data.duration);
   fields.source.href = data.sourceUrl;
   fields.caption.textContent = data.caption || data.title || 'No caption or title was available.';
-  fields.video.src = data.videoUrl;
-  fields.download.href = data.downloadUrl;
+  if (data.videoUrl) {
+    fields.video.src = data.videoUrl;
+  } else {
+    fields.video.removeAttribute('src');
+  }
+  fields.download.href = data.downloadUrl || '#';
   processStatus.classList.add('hidden');
   overlayStatus.classList.add('hidden');
   publishPanel.classList.add('hidden');
@@ -223,6 +228,8 @@ function displayResult(data) {
   if (data.finalVideoUrl) {
     displayFinalResult(data);
   }
+
+  updateManualPipelineStatus(data);
 }
 
 function setProcessStatus(message, type = 'neutral') {
@@ -232,10 +239,14 @@ function setProcessStatus(message, type = 'neutral') {
 }
 
 function displayFinalResult(data) {
-  fields.finalVideo.src = data.finalVideoUrl;
+  if (data.finalVideoUrl) {
+    fields.finalVideo.src = data.finalVideoUrl;
+  } else {
+    fields.finalVideo.removeAttribute('src');
+  }
   fields.finalDuration.textContent = formatDuration(data.finalDuration);
   fields.outroStatus.textContent = data.outroEnabled ? 'Enabled' : 'Disabled';
-  fields.downloadFinal.href = data.finalDownloadUrl;
+  fields.downloadFinal.href = data.finalDownloadUrl || '#';
   if (data.overlays) {
     fields.logoOverlayStatus.textContent = data.overlays.logo?.enabled ? 'Enabled' : 'Disabled';
     fields.logoOverlayPosition.textContent = data.overlays.logo?.position || 'top-left';
@@ -249,6 +260,55 @@ function displayFinalResult(data) {
   displayPublishingState(data);
   publishPanel.classList.remove('hidden');
   setProcessing(false);
+}
+
+function updateManualPipelineStatus(data) {
+  const pipeline = data.manualPipeline;
+  if (!pipeline) return;
+
+  if (pipeline.status === 'queued') {
+    setProcessStatus('Downloaded. Editing, uploading, and sending to Buffer automatically...');
+    return;
+  }
+
+  if (pipeline.status === 'running') {
+    setProcessStatus('Automatic processing is running: edit, Cloudinary upload, Buffer send...');
+    return;
+  }
+
+  if (pipeline.status === 'completed') {
+    setProcessStatus('Automatic processing completed and sent to Buffer.', 'success');
+    stopManualPipelinePolling();
+    displayPublishingState(data);
+    publishPanel.classList.remove('hidden');
+    return;
+  }
+
+  if (pipeline.status === 'failed') {
+    setProcessStatus(pipeline.error || 'Automatic processing failed.', 'error');
+    stopManualPipelinePolling();
+  }
+}
+
+function stopManualPipelinePolling() {
+  if (manualPipelinePoller) {
+    clearInterval(manualPipelinePoller);
+    manualPipelinePoller = null;
+  }
+}
+
+function startManualPipelinePolling(jobId) {
+  stopManualPipelinePolling();
+  manualPipelinePoller = setInterval(async () => {
+    try {
+      const response = await fetch(`/api/media/${jobId}/metadata`);
+      const data = await response.json();
+      if (!response.ok || !data.success) return;
+      displayResult(data);
+    } catch {
+      // Keep the current UI state; the next poll can recover.
+    }
+  }, 8000);
 }
 
 function setPublishMessage(message, type = 'neutral') {
@@ -340,7 +400,12 @@ form.addEventListener('submit', async (event) => {
     }
 
     displayResult(data);
-    setStatus('Completed', 'success');
+    if (data.manualPipeline) {
+      setStatus('Downloaded. Auto processing started.', 'success');
+      startManualPipelinePolling(data.jobId);
+    } else {
+      setStatus('Completed', 'success');
+    }
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {

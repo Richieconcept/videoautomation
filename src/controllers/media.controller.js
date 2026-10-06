@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fetchAndDownload } from '../services/mediaDownloader.js';
 import { processVideo } from '../services/videoEditor.js';
+import { processForPublishing } from '../services/publishing.service.js';
 import { generateCaption } from '../services/caption.service.js';
 import { uploadVideoToCloudinary } from '../services/cloudinary.service.js';
 import { publishToSelectedPlatforms } from '../services/buffer.service.js';
@@ -11,8 +12,66 @@ function shouldCleanupLocalMedia() {
   return !['0', 'false', 'no', 'off'].includes(String(process.env.CLEANUP_LOCAL_MEDIA_AFTER_CLOUDINARY || 'true').toLowerCase());
 }
 
+function shouldAutoProcessManualFetch() {
+  return !['0', 'false', 'no', 'off'].includes(String(process.env.MANUAL_FETCH_AUTO_PIPELINE || 'true').toLowerCase());
+}
+
+async function runManualAutoPipeline(jobId) {
+  try {
+    let metadata = await readMetadata(jobId);
+    if (metadata.manualPipeline?.status === 'running' || metadata.manualPipeline?.status === 'completed') {
+      return;
+    }
+
+    await writeMetadata(jobId, {
+      ...metadata,
+      manualPipeline: {
+        status: 'running',
+        startedAt: new Date().toISOString()
+      }
+    });
+    metadata = await readMetadata(jobId);
+
+    await processVideo(jobId, {
+      sourceDurationLimitSeconds: process.env.AUTO_TRIM_LONG_VIDEOS === 'true'
+        ? Number.parseInt(process.env.MAX_AUTO_VIDEO_DURATION_SECONDS || '300', 10)
+        : 0
+    });
+
+    const published = await processForPublishing(jobId, {
+      mode: process.env.BUFFER_POST_MODE || 'shareNow',
+      platforms: ['facebook', 'tiktok', 'youtube']
+    });
+
+    await writeMetadata(jobId, {
+      ...published,
+      manualPipeline: {
+        status: 'completed',
+        startedAt: metadata.manualPipeline?.startedAt,
+        completedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    try {
+      const metadata = await readMetadata(jobId);
+      await writeMetadata(jobId, {
+        ...metadata,
+        manualPipeline: {
+          status: 'failed',
+          error: error.message,
+          failedAt: new Date().toISOString()
+        }
+      });
+    } catch {
+      // The original failure is already logged below.
+    }
+    console.error('[manual] auto pipeline failed', jobId, error);
+  }
+}
+
 function toApiResponse(metadata, req) {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const localMediaAvailable = !metadata.localMediaCleanedAt;
   const originalCaption = typeof metadata.caption === 'string'
     ? metadata.caption
     : metadata.caption?.original || metadata.description || metadata.title || '';
@@ -32,9 +91,9 @@ function toApiResponse(metadata, req) {
     height: metadata.height,
     uploadDate: metadata.uploadDate,
     webpageUrl: metadata.webpageUrl,
-    thumbnailUrl: metadata.thumbnailFileName ? `${baseUrl}/api/media/${metadata.jobId}/thumbnail` : null,
-    videoUrl: `${baseUrl}/api/media/${metadata.jobId}/video`,
-    downloadUrl: `${baseUrl}/api/media/${metadata.jobId}/video?download=1`,
+    thumbnailUrl: localMediaAvailable && metadata.thumbnailFileName ? `${baseUrl}/api/media/${metadata.jobId}/thumbnail` : null,
+    videoUrl: localMediaAvailable ? `${baseUrl}/api/media/${metadata.jobId}/video` : null,
+    downloadUrl: localMediaAvailable ? `${baseUrl}/api/media/${metadata.jobId}/video?download=1` : null,
     downloadStatus: metadata.downloadStatus,
     processingStatus: metadata.processingStatus || null,
     sourceDuration: metadata.sourceDuration || null,
@@ -42,8 +101,8 @@ function toApiResponse(metadata, req) {
     brandInsertionPoints: metadata.brandInsertionPoints || [],
     outroEnabled: metadata.outroEnabled ?? Boolean(metadata.finalFileName),
     finalDuration: metadata.finalDuration || null,
-    finalVideoUrl: metadata.finalFileName ? `${baseUrl}/api/media/${metadata.jobId}/final` : null,
-    finalDownloadUrl: metadata.finalFileName ? `${baseUrl}/api/media/${metadata.jobId}/final?download=1` : null,
+    finalVideoUrl: localMediaAvailable && metadata.finalFileName ? `${baseUrl}/api/media/${metadata.jobId}/final` : null,
+    finalDownloadUrl: localMediaAvailable && metadata.finalFileName ? `${baseUrl}/api/media/${metadata.jobId}/final?download=1` : null,
     overlays: metadata.overlays || null,
     cloudinary: metadata.cloudinary
       ? {
@@ -56,13 +115,29 @@ function toApiResponse(metadata, req) {
         }
       : null,
     generatedCaption: typeof metadata.caption === 'object' ? metadata.caption : null,
-    publishing: metadata.publishing || null
+    publishing: metadata.publishing || null,
+    manualPipeline: metadata.manualPipeline || null,
+    localMediaCleanedAt: metadata.localMediaCleanedAt || null
   };
 }
 
 export async function fetchMedia(req, res, next) {
   try {
     const metadata = await fetchAndDownload(req.body?.url);
+    if (shouldAutoProcessManualFetch()) {
+      await writeMetadata(metadata.jobId, {
+        ...metadata,
+        manualPipeline: {
+          status: 'queued',
+          queuedAt: new Date().toISOString()
+        }
+      });
+      runManualAutoPipeline(metadata.jobId);
+      const queuedMetadata = await readMetadata(metadata.jobId);
+      res.status(201).json(toApiResponse(queuedMetadata, req));
+      return;
+    }
+
     res.status(201).json(toApiResponse(metadata, req));
   } catch (error) {
     next(error);
