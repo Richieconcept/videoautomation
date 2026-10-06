@@ -14,6 +14,11 @@ const app = express();
 app.disable('x-powered-by');
 app.use(morgan('dev'));
 app.use(express.json({ limit: '32kb' }));
+
+app.get('/healthz', (req, res) => {
+  res.status(200).json({ ok: true, service: 'social-video-fetcher' });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/media', mediaRoutes);

@@ -78,6 +78,17 @@ export function shouldAcceptCandidate(candidate, state, options = {}) {
   const publishedAt = candidate.publishedAt ? Date.parse(candidate.publishedAt) : null;
   const maxAge = options.bootstrap ? bootstrapMaxAgeMs() : watchMaxAgeMs();
   const ageKnown = Number.isFinite(publishedAt);
+  const normalizedUrl = normalizeUrl(candidate.url);
+  const fingerprint = simpleFingerprint(candidate);
+  const duplicate = state.posts.some((post) => {
+    return post.normalizedUrl === normalizedUrl
+      || (post.platform === candidate.platform && post.externalPostId === candidate.externalPostId)
+      || (post.creatorId === candidate.creatorId && post.contentFingerprint === fingerprint && fingerprint.split(':').at(-1));
+  });
+
+  if (duplicate) {
+    return { accepted: false, status: 'duplicate', reason: 'This video was already discovered or closely matches an existing post.' };
+  }
 
   if (ageKnown && Date.now() - publishedAt > maxAge) {
     return { accepted: false, status: 'too_old', reason: 'Video is outside the configured source age window.' };
@@ -89,18 +100,6 @@ export function shouldAcceptCandidate(candidate, state, options = {}) {
 
   if (!trimLongAutoVideos() && candidate.duration && candidate.duration > maxAutoDuration()) {
     return { accepted: false, status: 'too_long', reason: 'Video is longer than the automation maximum duration.' };
-  }
-
-  const normalizedUrl = normalizeUrl(candidate.url);
-  const fingerprint = simpleFingerprint(candidate);
-  const duplicate = state.posts.some((post) => {
-    return post.normalizedUrl === normalizedUrl
-      || (post.platform === candidate.platform && post.externalPostId === candidate.externalPostId)
-      || (post.creatorId === candidate.creatorId && post.contentFingerprint === fingerprint && fingerprint.split(':').at(-1));
-  });
-
-  if (duplicate) {
-    return { accepted: false, status: 'duplicate', reason: 'This video was already discovered or closely matches an existing post.' };
   }
 
   if ((state.counters?.queuedToday || 0) >= maxPostsPerDay()) {
@@ -135,6 +134,21 @@ async function enrichCandidate(candidate) {
 
 async function recordRejected(candidate, status, reason) {
   await updateState((state) => {
+    const normalizedUrl = normalizeUrl(candidate.url);
+    const fingerprint = simpleFingerprint(candidate);
+    const alreadyRecorded = state.posts.some((post) => {
+      return post.normalizedUrl === normalizedUrl
+        || (post.platform === candidate.platform && post.externalPostId === candidate.externalPostId)
+        || (post.creatorId === candidate.creatorId && post.contentFingerprint === fingerprint && fingerprint.split(':').at(-1));
+    });
+
+    if (alreadyRecorded) {
+      if (status === 'duplicate') {
+        state.counters.duplicatesSkippedToday += 1;
+      }
+      return state;
+    }
+
     state.posts.push({
       id: newId('post'),
       creatorId: candidate.creatorId,
@@ -142,13 +156,13 @@ async function recordRejected(candidate, status, reason) {
       platform: candidate.platform,
       externalPostId: candidate.externalPostId,
       url: candidate.url,
-      normalizedUrl: normalizeUrl(candidate.url),
+      normalizedUrl,
       title: candidate.title || '',
       duration: candidate.duration || null,
       publishedAt: candidate.publishedAt || null,
       status,
       reason,
-      contentFingerprint: simpleFingerprint(candidate),
+      contentFingerprint: fingerprint,
       discoveredAt: now()
     });
     if (status === 'duplicate') {

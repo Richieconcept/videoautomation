@@ -48,6 +48,30 @@ test('automation rejects duplicate URLs', () => {
   assert.equal(decision.status, 'duplicate');
 });
 
+test('automation detects duplicates before old-video filtering', () => {
+  const oldDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const decision = shouldAcceptCandidate(candidate({ publishedAt: oldDate }), state({
+    posts: [{
+      normalizedUrl: 'https://www.youtube.com/watch?v=abc123',
+      platform: 'youtube',
+      externalPostId: 'abc123',
+      creatorId: 'verydarkman',
+      contentFingerprint: 'other'
+    }]
+  }));
+
+  assert.equal(decision.accepted, false);
+  assert.equal(decision.status, 'duplicate');
+});
+
+test('automation still rejects unseen old videos', () => {
+  const oldDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const decision = shouldAcceptCandidate(candidate({ publishedAt: oldDate }), state());
+
+  assert.equal(decision.accepted, false);
+  assert.equal(decision.status, 'too_old');
+});
+
 test('automation rejects short videos and trims long videos by default', () => {
   assert.equal(shouldAcceptCandidate(candidate({ duration: 4 }), state()).status, 'too_short');
   assert.equal(shouldAcceptCandidate(candidate({ duration: 301 }), state()).accepted, true);
