@@ -1,0 +1,21 @@
+{
+  "name": "social-video-fetcher",
+  "version": "1.0.0",
+  "description": "Phase 1 social video metadata fetcher and downloader",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cloudinary": "^2.11.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0"
+  }
+}

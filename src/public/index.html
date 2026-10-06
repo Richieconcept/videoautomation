@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Social Video Fetcher</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="heading">
+          <p class="eyebrow">Phase 1</p>
+          <h1>Social Video Fetcher</h1>
+          <p>Paste a TikTok, Facebook or YouTube URL</p>
+        </div>
+
+        <form id="fetch-form" class="fetch-form">
+          <label class="sr-only" for="media-url">Social video URL</label>
+          <input id="media-url" name="url" type="url" placeholder="https://..." autocomplete="off" required>
+          <button id="fetch-button" type="submit">Fetch Video</button>
+        </form>
+
+        <div id="status" class="status" role="status" aria-live="polite">Ready.</div>
+      </section>
+
+      <section class="automation-panel">
+        <div class="automation-header">
+          <div>
+            <p class="eyebrow">Auto sources</p>
+            <h2>Creator Monitoring</h2>
+          </div>
+          <div class="automation-actions">
+            <button id="auto-toggle" class="secondary-button" type="button">Loading</button>
+            <button id="auto-check-all" type="button">Check All</button>
+          </div>
+        </div>
+
+        <div class="auto-status-grid">
+          <div>
+            <span>Mode</span>
+            <strong id="auto-mode">Loading</strong>
+          </div>
+          <div>
+            <span>Queued today</span>
+            <strong id="auto-queued">0</strong>
+          </div>
+          <div>
+            <span>Processed today</span>
+            <strong id="auto-processed">0</strong>
+          </div>
+          <div>
+            <span>Next check</span>
+            <strong id="auto-next-check">Unavailable</strong>
+          </div>
+        </div>
+
+        <form id="creator-form" class="creator-form">
+          <input id="creator-name" type="text" placeholder="Creator name" autocomplete="off">
+          <input id="creator-facebook" type="url" placeholder="Facebook profile URL">
+          <input id="creator-tiktok" type="url" placeholder="TikTok profile URL">
+          <input id="creator-youtube" type="url" placeholder="YouTube channel URL">
+          <button id="creator-add" class="secondary-button" type="submit">Add Creator</button>
+        </form>
+
+        <div id="auto-message" class="status" role="status" aria-live="polite">Auto sourcing is ready.</div>
+        <div id="creator-list" class="creator-list"></div>
+        <div id="recent-posts" class="recent-posts"></div>
+      </section>
+
+      <section id="result" class="result hidden" aria-live="polite">
+        <div class="meta-grid">
+          <div>
+            <span>Platform</span>
+            <strong id="platform"></strong>
+          </div>
+          <div>
+            <span>Author</span>
+            <strong id="author"></strong>
+          </div>
+          <div>
+            <span>Duration</span>
+            <strong id="duration"></strong>
+          </div>
+          <div>
+            <span>Source</span>
+            <a id="source" href="#" target="_blank" rel="noreferrer">Open original</a>
+          </div>
+        </div>
+
+        <div id="thumbnail-wrap" class="thumbnail-wrap hidden">
+          <img id="thumbnail" alt="Video thumbnail">
+        </div>
+
+        <div class="caption-block">
+          <h2>Original Caption / Title</h2>
+          <p id="caption"></p>
+        </div>
+
+        <div class="video-block">
+          <h2>Original Video</h2>
+          <video id="video" controls preload="metadata"></video>
+        </div>
+
+        <div class="actions">
+          <a id="download" class="download-link" href="#" download>Download Video</a>
+          <button id="process-button" class="secondary-button" type="button">Process Video</button>
+        </div>
+
+        <div id="process-status" class="status process-status hidden" role="status" aria-live="polite"></div>
+
+        <div id="overlay-status" class="overlay-status hidden">
+          <div>
+            <span>Logo overlay</span>
+            <strong id="logo-overlay-status">Enabled</strong>
+          </div>
+          <div>
+            <span>Logo position</span>
+            <strong id="logo-overlay-position">Top left</strong>
+          </div>
+          <div>
+            <span>Logo size</span>
+            <strong id="logo-overlay-size">16%</strong>
+          </div>
+          <div>
+            <span>Reaction overlay</span>
+            <strong id="reaction-overlay-status">Enabled</strong>
+          </div>
+          <div>
+            <span>Reaction position</span>
+            <strong id="reaction-overlay-position">Bottom left</strong>
+          </div>
+          <div>
+            <span>Reaction size</span>
+            <strong id="reaction-overlay-size">45%</strong>
+          </div>
+        </div>
+
+        <section id="final-result" class="final-result hidden">
+          <h2>Final Video</h2>
+          <video id="final-video" controls preload="metadata"></video>
+
+          <div class="meta-grid final-meta">
+            <div>
+              <span>Duration</span>
+              <strong id="final-duration"></strong>
+            </div>
+          <div>
+              <span>Outro</span>
+              <strong id="outro-status"></strong>
+          </div>
+        </div>
+
+          <a id="download-final" class="download-link" href="#" download>Download Final Video</a>
+        </section>
+
+        <section id="publish-panel" class="publish-panel hidden">
+          <h2>Publishing</h2>
+
+          <div class="caption-preview">
+            <label for="original-caption">Original Caption</label>
+            <textarea id="original-caption" readonly></textarea>
+
+            <label for="generated-caption">9ja Trending TV Caption</label>
+            <textarea id="generated-caption"></textarea>
+
+            <label for="youtube-title">YouTube Title</label>
+            <input id="youtube-title" type="text">
+
+            <label for="youtube-description">YouTube Description</label>
+            <textarea id="youtube-description"></textarea>
+          </div>
+
+          <div class="publishing-actions">
+            <button id="generate-caption-button" class="secondary-button" type="button">Generate Caption</button>
+            <button id="upload-button" class="secondary-button" type="button">Upload Video</button>
+            <select id="publish-mode" aria-label="Publish mode">
+              <option value="shareNow">Publish now</option>
+              <option value="addToQueue">Add to queue</option>
+              <option value="draft">Draft</option>
+            </select>
+          </div>
+
+          <div class="publish-status-grid">
+            <div>
+              <span>Cloudinary</span>
+              <strong id="cloudinary-status">Ready</strong>
+              <a id="cloudinary-url" class="small-link hidden" href="#" target="_blank" rel="noreferrer">Open video</a>
+            </div>
+            <div>
+              <span>Caption</span>
+              <strong id="caption-status">Ready</strong>
+            </div>
+            <div>
+              <span>Facebook</span>
+              <strong id="facebook-status">Ready</strong>
+              <button id="publish-facebook" class="mini-button" type="button">Publish Facebook</button>
+            </div>
+            <div>
+              <span>TikTok</span>
+              <strong id="tiktok-status">Ready</strong>
+              <button id="publish-tiktok" class="mini-button" type="button">Publish TikTok</button>
+            </div>
+            <div>
+              <span>YouTube</span>
+              <strong id="youtube-status">Ready</strong>
+              <button id="publish-youtube" class="mini-button" type="button">Publish YouTube</button>
+            </div>
+          </div>
+
+          <button id="publish-all" class="download-link publish-all" type="button">Publish All</button>
+          <div id="publish-message" class="status process-status hidden" role="status" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

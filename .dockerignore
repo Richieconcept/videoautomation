@@ -1,0 +1,8 @@
+.env
+node_modules
+npm-debug.log*
+storage/downloads
+storage/automation/state.json
+tools/yt-dlp.exe
+.git
+.gitignore
