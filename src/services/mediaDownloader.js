@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { detectPlatform, parseAndValidateUrl, validatePublicNetworkTarget } from '../utils/platformDetector.js';
 import { MediaDownloadError } from '../utils/errors.js';
+import { getYtDlpPath } from '../utils/ytdlpPath.js';
 import {
   createJobDirectory,
   createJobId,
@@ -12,13 +12,6 @@ import {
 } from './mediaStorage.js';
 
 const USER_AGENT = 'Mozilla/5.0 social-video-fetcher/1.0';
-
-function ytdlpPath() {
-  const configuredPath = process.env.YTDLP_PATH || 'yt-dlp';
-  return configuredPath.includes('/') || configuredPath.includes('\\')
-    ? path.resolve(configuredPath)
-    : configuredPath;
-}
 
 function maxDuration() {
   return Number.parseInt(process.env.MAX_VIDEO_DURATION || '600', 10);
@@ -69,7 +62,7 @@ function downloadFormatSelector() {
 
 function runYtDlp(args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(ytdlpPath(), args, {
+    const child = spawn(getYtDlpPath(), args, {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...options

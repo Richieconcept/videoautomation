@@ -1,16 +1,9 @@
-import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { validatePublicNetworkTarget } from '../../utils/platformDetector.js';
 import { AppError } from '../../utils/errors.js';
+import { getYtDlpPath } from '../../utils/ytdlpPath.js';
 
 const USER_AGENT = 'Mozilla/5.0 social-video-fetcher/1.0';
-
-function ytdlpPath() {
-  const configuredPath = process.env.YTDLP_PATH || 'yt-dlp';
-  return configuredPath.includes('/') || configuredPath.includes('\\')
-    ? path.resolve(configuredPath)
-    : configuredPath;
-}
 
 function flatPlaylistLimit() {
   const limit = Number.parseInt(process.env.AUTO_SOURCE_FLATPLAYLIST_LIMIT || '3', 10);
@@ -30,7 +23,7 @@ function killProcessTree(child) {
 
 function runYtDlp(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(ytdlpPath(), args, {
+    const child = spawn(getYtDlpPath(), args, {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe']
     });
