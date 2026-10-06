@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { detectPlatform, parseAndValidateUrl, validatePublicNetworkTarget } from '../utils/platformDetector.js';
 import { MediaDownloadError } from '../utils/errors.js';
